@@ -1,0 +1,1126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Negative Keyword Builder — SP & SB</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap');
+
+  :root {
+    --orange: #FF6B00;
+    --orange-light: #FF8C3A;
+    --orange-dim: rgba(255,107,0,0.12);
+    --orange-glow: rgba(255,107,0,0.35);
+    --blue: #3B9EFF;
+    --blue-dim: rgba(59,158,255,0.12);
+    --bg: #0E0E0F;
+    --surface: #161618;
+    --surface2: #1E1E21;
+    --border: rgba(255,255,255,0.07);
+    --border-active: rgba(255,107,0,0.4);
+    --text: #F0EDE8;
+    --text-muted: #7A7875;
+    --text-dim: #3A3835;
+    --green: #2ECC8A;
+    --red: #FF4757;
+    --yellow: #FFD32A;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(255,107,0,0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,107,0,0.025) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .wrap {
+    position: relative;
+    z-index: 1;
+    max-width: 980px;
+    margin: 0 auto;
+    padding: 48px 24px 80px;
+  }
+
+  /* ── Header ─────────────────────────────────────────────────────────────── */
+  .header { margin-bottom: 48px; }
+  .header-tag {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--orange);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+  .header h1 {
+    font-size: clamp(30px, 5vw, 50px);
+    font-weight: 800;
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+  }
+  .header h1 .sp { color: var(--orange); }
+  .header h1 .sb { color: var(--blue); }
+  .header p {
+    margin-top: 14px;
+    color: var(--text-muted);
+    font-size: 15px;
+    max-width: 540px;
+    line-height: 1.6;
+  }
+
+  /* ── Section label ──────────────────────────────────────────────────────── */
+  .section-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+  }
+
+  /* ── Thresholds ─────────────────────────────────────────────────────────── */
+  .thresholds {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-bottom: 32px;
+  }
+  @media (max-width: 600px) { .thresholds { grid-template-columns: 1fr; } }
+
+  .threshold-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 20px;
+    transition: border-color 0.2s;
+  }
+  .threshold-card:focus-within { border-color: var(--border-active); }
+  .threshold-card label {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+    letter-spacing: 0.06em;
+    margin-bottom: 10px;
+    text-transform: uppercase;
+  }
+  .input-prefix { display: flex; align-items: center; gap: 8px; }
+  .prefix-symbol {
+    font-family: 'DM Mono', monospace;
+    font-size: 14px;
+    color: var(--orange);
+    font-weight: 500;
+    min-width: 14px;
+  }
+  .threshold-card input {
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 22px;
+    font-weight: 500;
+    width: 100%;
+  }
+  .threshold-desc {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 6px;
+    font-family: 'DM Mono', monospace;
+  }
+
+  /* ── Drop zone ──────────────────────────────────────────────────────────── */
+  .drop-zone {
+    border: 1.5px dashed var(--border);
+    border-radius: 14px;
+    padding: 52px 32px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.25s, background 0.25s;
+    margin-bottom: 32px;
+    position: relative;
+    background: var(--surface);
+  }
+  .drop-zone:hover, .drop-zone.drag-over {
+    border-color: var(--orange);
+    background: var(--orange-dim);
+  }
+  .drop-zone input[type="file"] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+    width: 100%;
+    height: 100%;
+  }
+  .drop-icon { font-size: 36px; margin-bottom: 14px; display: block; }
+  .drop-title { font-size: 17px; font-weight: 700; margin-bottom: 6px; }
+  .drop-sub { font-size: 13px; color: var(--text-muted); font-family: 'DM Mono', monospace; }
+  .drop-zone.loaded { border-color: var(--green); background: rgba(46,204,138,0.06); }
+
+  /* ── Sheets detected badge ──────────────────────────────────────────────── */
+  .sheets-found {
+    display: none;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 16px;
+    justify-content: center;
+  }
+  .sheets-found.visible { display: flex; }
+  .sheet-badge {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-weight: 500;
+  }
+  .sheet-badge.sp { background: var(--orange-dim); color: var(--orange); }
+  .sheet-badge.sb { background: var(--blue-dim); color: var(--blue); }
+  .sheet-badge.missing { background: rgba(255,71,87,0.12); color: var(--red); }
+
+  /* ── Process button ─────────────────────────────────────────────────────── */
+  .btn-process {
+    width: 100%;
+    padding: 18px;
+    background: var(--orange);
+    border: none;
+    border-radius: 10px;
+    color: white;
+    font-family: 'Syne', sans-serif;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.1s, box-shadow 0.2s;
+    text-transform: uppercase;
+    margin-bottom: 32px;
+  }
+  .btn-process:hover:not(:disabled) {
+    background: var(--orange-light);
+    box-shadow: 0 4px 28px var(--orange-glow);
+    transform: translateY(-1px);
+  }
+  .btn-process:active:not(:disabled) { transform: translateY(0); }
+  .btn-process:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  /* ── Error / Loading ────────────────────────────────────────────────────── */
+  .error-box {
+    background: rgba(255,71,87,0.1);
+    border: 1px solid rgba(255,71,87,0.3);
+    border-radius: 10px;
+    padding: 14px 18px;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    color: var(--red);
+    margin-bottom: 20px;
+    display: none;
+  }
+  .error-box.visible { display: block; }
+  .loading {
+    text-align: center;
+    padding: 20px;
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    color: var(--text-muted);
+    display: none;
+  }
+  .loading.visible { display: block; }
+  .loading::after {
+    content: '';
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border: 2px solid var(--orange);
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    margin-left: 10px;
+    vertical-align: middle;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Results ────────────────────────────────────────────────────────────── */
+  .results { display: none; }
+  .results.visible { display: block; }
+
+  /* ── Combined stats bar ─────────────────────────────────────────────────── */
+  .combined-bar {
+    background: var(--surface);
+    border: 1px solid var(--border-active);
+    border-radius: 12px;
+    padding: 20px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    flex-wrap: wrap;
+    margin-bottom: 28px;
+  }
+  .combined-label {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+    font-weight: 600;
+  }
+  .combined-total {
+    font-family: 'DM Mono', monospace;
+    font-size: 38px;
+    font-weight: 500;
+    color: var(--orange);
+    line-height: 1;
+  }
+  .combined-right {
+    display: flex;
+    gap: 32px;
+    flex-wrap: wrap;
+  }
+  .combined-stat { text-align: right; }
+  .combined-stat .val {
+    font-family: 'DM Mono', monospace;
+    font-size: 22px;
+    font-weight: 500;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+  .combined-stat .lbl {
+    font-size: 10px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 600;
+  }
+
+  /* ── Campaign type panels ───────────────────────────────────────────────── */
+  .panels { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 28px; }
+  @media (max-width: 680px) { .panels { grid-template-columns: 1fr; } }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .panel-header {
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+  }
+  .panel-title {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .panel-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+  .panel-dot.sp { background: var(--orange); }
+  .panel-dot.sb { background: var(--blue); }
+  .panel-stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0;
+  }
+  .mini-stat {
+    padding: 14px 16px;
+    border-right: 1px solid var(--border);
+  }
+  .mini-stat:last-child { border-right: none; }
+  .mini-stat .mval {
+    font-family: 'DM Mono', monospace;
+    font-size: 18px;
+    font-weight: 500;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+  .mini-stat .mlbl {
+    font-size: 9px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: 600;
+  }
+  .mini-stat.orange .mval { color: var(--orange); }
+  .mini-stat.yellow .mval { color: var(--yellow); }
+  .mini-stat.red .mval    { color: var(--red); }
+  .mini-stat.green .mval  { color: var(--green); }
+
+  /* ── Preview tabs ───────────────────────────────────────────────────────── */
+  .table-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 28px;
+  }
+  .tab-bar {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+  }
+  .tab-btn {
+    padding: 13px 20px;
+    font-family: 'Syne', sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-muted);
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: color 0.2s, border-color 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+  .tab-btn.active-sp { color: var(--orange); border-bottom-color: var(--orange); }
+  .tab-btn.active-sb { color: var(--blue);   border-bottom-color: var(--blue); }
+  .tab-count {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    padding: 2px 7px;
+    border-radius: 10px;
+    font-weight: 500;
+  }
+  .tab-btn.active-sp .tab-count { background: var(--orange-dim); color: var(--orange); }
+  .tab-btn.active-sb .tab-count { background: var(--blue-dim);   color: var(--blue); }
+  .tab-btn:not(.active-sp):not(.active-sb) .tab-count { background: var(--surface2); color: var(--text-muted); }
+
+  .table-pane { display: none; }
+  .table-pane.active { display: block; }
+  .table-scroll { overflow-x: auto; max-height: 340px; overflow-y: auto; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  thead th {
+    background: var(--surface2);
+    padding: 10px 14px;
+    text-align: left;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    position: sticky;
+    top: 0;
+    white-space: nowrap;
+    border-bottom: 1px solid var(--border);
+  }
+  tbody tr { border-bottom: 1px solid var(--border); transition: background 0.1s; }
+  tbody tr:hover { background: var(--surface2); }
+  tbody tr:last-child { border-bottom: none; }
+  tbody td {
+    padding: 9px 14px;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--text);
+    white-space: nowrap;
+    max-width: 240px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .flag-zero {
+    background: rgba(255,211,42,0.12); color: var(--yellow);
+    padding: 2px 8px; border-radius: 4px; font-size: 10px;
+  }
+  .flag-acos {
+    background: rgba(255,71,87,0.12); color: var(--red);
+    padding: 2px 8px; border-radius: 4px; font-size: 10px;
+  }
+  .empty-row td {
+    text-align: center;
+    padding: 32px;
+    color: var(--text-muted);
+    font-style: italic;
+  }
+
+  /* ── Download button ────────────────────────────────────────────────────── */
+  .btn-download {
+    width: 100%;
+    padding: 18px;
+    background: transparent;
+    border: 1.5px solid var(--orange);
+    border-radius: 10px;
+    color: var(--orange);
+    font-family: 'Syne', sans-serif;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s, box-shadow 0.2s;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+  }
+  .btn-download:hover {
+    background: var(--orange);
+    color: white;
+    box-shadow: 0 4px 28px var(--orange-glow);
+  }
+  .download-sub {
+    text-align: center;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 10px;
+  }
+
+  hr.divider { border: none; border-top: 1px solid var(--border); margin: 36px 0; }
+
+  .reset-link {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--text-muted);
+    text-decoration: none;
+    cursor: pointer;
+    background: none;
+    border: none;
+    padding: 0;
+    margin-top: 20px;
+    display: block;
+    text-align: center;
+    transition: color 0.2s;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .reset-link:hover { color: var(--orange); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="header-tag">Amazon Ads · Bulk Negative Keyword Builder</div>
+    <h1>Negative Keywords<br><span class="sp">Sponsored Products</span> + <span class="sb">Sponsored Brands</span></h1>
+    <p>Upload your bulk report, set your thresholds once, and download both SP and SB negative keyword files — Amazon upload-ready in seconds.</p>
+  </div>
+
+  <!-- Step 1: Thresholds -->
+  <div class="section-label">Step 1 — Set Thresholds &nbsp;·&nbsp; Applied to both SP &amp; SB</div>
+  <div class="thresholds">
+    <div class="threshold-card">
+      <label>Zero Sales: Min Clicks</label>
+      <div class="input-prefix">
+        <span class="prefix-symbol">#</span>
+        <input type="number" id="thresh-clicks" value="15" min="1">
+      </div>
+      <div class="threshold-desc">clicks with 0 sales → negate</div>
+    </div>
+    <div class="threshold-card">
+      <label>Zero Sales: Min Spend</label>
+      <div class="input-prefix">
+        <span class="prefix-symbol">$</span>
+        <input type="number" id="thresh-spend" value="20" min="0" step="0.01">
+      </div>
+      <div class="threshold-desc">ad spend with 0 sales → negate</div>
+    </div>
+    <div class="threshold-card">
+      <label>Max Acceptable ACOS</label>
+      <div class="input-prefix">
+        <span class="prefix-symbol">%</span>
+        <input type="number" id="thresh-acos" value="74" min="1" max="999">
+      </div>
+      <div class="threshold-desc">above this threshold → negate</div>
+    </div>
+  </div>
+
+  <!-- Step 2: Upload -->
+  <div class="section-label">Step 2 — Upload Bulk File</div>
+  <div class="drop-zone" id="drop-zone">
+    <input type="file" id="file-input" accept=".xlsx,.xls">
+    <span class="drop-icon" id="drop-icon">📂</span>
+    <div class="drop-title" id="drop-title">Drop your bulk .xlsx file here</div>
+    <div class="drop-sub" id="drop-sub">or click to browse</div>
+    <div class="sheets-found" id="sheets-found"></div>
+  </div>
+
+  <div class="error-box" id="error-box"></div>
+
+  <!-- Step 3: Process -->
+  <button class="btn-process" id="btn-process" disabled>
+    ⚡ Process &amp; Filter — SP + SB
+  </button>
+
+  <div class="loading" id="loading">Processing search terms</div>
+
+  <!-- Results -->
+  <div class="results" id="results">
+
+    <!-- Combined totals bar -->
+    <div class="section-label">Results</div>
+    <div class="combined-bar">
+      <div>
+        <div class="combined-label">Total Terms to Negate</div>
+        <div class="combined-total" id="combined-total">—</div>
+      </div>
+      <div class="combined-right">
+        <div class="combined-stat">
+          <div class="val" id="combined-zero" style="color:var(--yellow)">—</div>
+          <div class="lbl">Zero Sales</div>
+        </div>
+        <div class="combined-stat">
+          <div class="val" id="combined-acos" style="color:var(--red)">—</div>
+          <div class="lbl">High ACOS</div>
+        </div>
+        <div class="combined-stat">
+          <div class="val" id="combined-spend" style="color:var(--green)">—</div>
+          <div class="lbl">Wasted Spend</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SP + SB breakdown panels -->
+    <div class="panels">
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">
+            <span class="panel-dot sp"></span>Sponsored Products
+          </div>
+        </div>
+        <div class="panel-stats">
+          <div class="mini-stat orange">
+            <div class="mval" id="sp-total">—</div>
+            <div class="mlbl">Negatives</div>
+          </div>
+          <div class="mini-stat yellow">
+            <div class="mval" id="sp-zero">—</div>
+            <div class="mlbl">0 Sales</div>
+          </div>
+          <div class="mini-stat red">
+            <div class="mval" id="sp-acos">—</div>
+            <div class="mlbl">High ACOS</div>
+          </div>
+          <div class="mini-stat green">
+            <div class="mval" id="sp-spend">—</div>
+            <div class="mlbl">Wasted $</div>
+          </div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">
+            <span class="panel-dot sb"></span>Sponsored Brands
+          </div>
+        </div>
+        <div class="panel-stats">
+          <div class="mini-stat" style="--c:var(--blue)">
+            <div class="mval" id="sb-total" style="color:var(--blue)">—</div>
+            <div class="mlbl">Negatives</div>
+          </div>
+          <div class="mini-stat yellow">
+            <div class="mval" id="sb-zero">—</div>
+            <div class="mlbl">0 Sales</div>
+          </div>
+          <div class="mini-stat red">
+            <div class="mval" id="sb-acos">—</div>
+            <div class="mlbl">High ACOS</div>
+          </div>
+          <div class="mini-stat green">
+            <div class="mval" id="sb-spend">—</div>
+            <div class="mlbl">Wasted $</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Preview table with tabs -->
+    <div class="table-wrap">
+      <div class="tab-bar">
+        <button class="tab-btn active-sp" id="tab-sp" onclick="switchTab('sp')">
+          <span>Sponsored Products</span>
+          <span class="tab-count" id="tab-sp-count">0</span>
+        </button>
+        <button class="tab-btn" id="tab-sb" onclick="switchTab('sb')">
+          <span>Sponsored Brands</span>
+          <span class="tab-count" id="tab-sb-count">0</span>
+        </button>
+      </div>
+
+      <!-- SP table -->
+      <div class="table-pane active" id="pane-sp">
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Search Term</th>
+                <th>Campaign</th>
+                <th>Ad Group</th>
+                <th>Flag</th>
+                <th>Clicks</th>
+                <th>Spend</th>
+                <th>Sales</th>
+                <th>ACOS</th>
+              </tr>
+            </thead>
+            <tbody id="sp-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- SB table -->
+      <div class="table-pane" id="pane-sb">
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Search Term</th>
+                <th>Campaign</th>
+                <th>Flag</th>
+                <th>Clicks</th>
+                <th>Spend</th>
+                <th>Sales</th>
+                <th>ACOS</th>
+              </tr>
+            </thead>
+            <tbody id="sb-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Download -->
+    <button class="btn-download" id="btn-download">
+      ⬇ Download Amazon Upload File
+    </button>
+    <div class="download-sub" id="download-sub">Includes: Sponsored Products Campaigns tab · Sponsored Brands Campaigns tab · Filtering Summary tab</div>
+
+    <hr class="divider">
+    <button class="reset-link" id="btn-reset">↺ Process a new file</button>
+  </div>
+
+</div>
+<script>
+  let workbookData = null;
+  let spNegatives  = [];
+  let sbNegatives  = [];
+  let activeTab    = 'sp';
+
+  const dropZone   = document.getElementById('drop-zone');
+  const fileInput  = document.getElementById('file-input');
+  const btnProcess = document.getElementById('btn-process');
+  const btnDownload= document.getElementById('btn-download');
+  const btnReset   = document.getElementById('btn-reset');
+  const results    = document.getElementById('results');
+  const loading    = document.getElementById('loading');
+  const errorBox   = document.getElementById('error-box');
+
+  const SP_SHEET = 'SP Search Term Report';
+  const SB_SHEET = 'SB Search Term Report';
+
+  // ── Drag & drop ─────────────────────────────────────────────────────────────
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+  dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('drag-over'); if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]); });
+  fileInput.addEventListener('change', e => { if (e.target.files[0]) handleFile(e.target.files[0]); });
+
+  function showError(msg) { errorBox.textContent = '⚠ ' + msg; errorBox.classList.add('visible'); }
+  function clearError()   { errorBox.classList.remove('visible'); }
+
+  function handleFile(file) {
+    clearError();
+    const reader = new FileReader();
+    reader.onload = e => {
+      try {
+        const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+        const hasSP = wb.SheetNames.includes(SP_SHEET);
+        const hasSB = wb.SheetNames.includes(SB_SHEET);
+
+        if (!hasSP && !hasSB) {
+          showError('No SP or SB Search Term Report tabs found. Please upload your Amazon bulk report.');
+          return;
+        }
+
+        workbookData = wb;
+        dropZone.classList.add('loaded');
+        document.getElementById('drop-icon').textContent  = '✅';
+        document.getElementById('drop-title').textContent = file.name;
+        document.getElementById('drop-sub').textContent   = 'File loaded — ready to process';
+
+        // Show detected sheets
+        const sheetDiv = document.getElementById('sheets-found');
+        sheetDiv.innerHTML = '';
+        const spBadge = document.createElement('span');
+        spBadge.className = 'sheet-badge ' + (hasSP ? 'sp' : 'missing');
+        spBadge.textContent = hasSP ? '✓ SP Search Term Report' : '✗ SP Search Term Report not found';
+        const sbBadge = document.createElement('span');
+        sbBadge.className = 'sheet-badge ' + (hasSB ? 'sb' : 'missing');
+        sbBadge.textContent = hasSB ? '✓ SB Search Term Report' : '✗ SB Search Term Report not found';
+        sheetDiv.appendChild(spBadge);
+        sheetDiv.appendChild(sbBadge);
+        sheetDiv.classList.add('visible');
+
+        btnProcess.disabled = false;
+      } catch(err) { showError('Could not read file: ' + err.message); }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  // ── Process ──────────────────────────────────────────────────────────────────
+  btnProcess.addEventListener('click', () => {
+    clearError();
+    loading.classList.add('visible');
+    btnProcess.disabled = true;
+    results.classList.remove('visible');
+    setTimeout(() => {
+      try {
+        processAll();
+        loading.classList.remove('visible');
+        results.classList.add('visible');
+        window.scrollBy({ top: 200, behavior: 'smooth' });
+      } catch(err) {
+        loading.classList.remove('visible');
+        showError('Processing error: ' + err.message);
+        btnProcess.disabled = false;
+      }
+    }, 50);
+  });
+
+  function getThresholds() {
+    return {
+      clicks: parseFloat(document.getElementById('thresh-clicks').value) || 15,
+      spend:  parseFloat(document.getElementById('thresh-spend').value)  || 20,
+      acos:   parseFloat(document.getElementById('thresh-acos').value)   || 74,
+    };
+  }
+
+  function filterSheet(sheetName, t) {
+    if (!workbookData.SheetNames.includes(sheetName)) return [];
+    const ws   = workbookData.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json(ws, { header: 1 });
+    const headers = rows[0];
+    const idx = {};
+    headers.forEach((h, i) => { idx[h] = i; });
+
+    const required = ['Campaign ID', 'Customer Search Term', 'Clicks', 'Spend', 'Sales', 'ACOS'];
+    required.forEach(col => { if (idx[col] === undefined) throw new Error(`"${sheetName}" missing column: "${col}"`); });
+
+    const results = [];
+    const seen    = new Set();
+
+    for (let i = 1; i < rows.length; i++) {
+      const row          = rows[i];
+      const campaignId   = String(row[idx['Campaign ID']] || '').trim();
+      const adGroupId    = String(row[idx['Ad Group ID']] || '').trim();
+      const searchTerm   = String(row[idx['Customer Search Term']] || '').trim();
+      const campaignName = String(row[idx['Campaign Name (Informational only)']] || '').trim();
+      const adGroupName  = String(row[idx['Ad Group Name (Informational only)']] || '').trim();
+      const clicks       = parseFloat(row[idx['Clicks']]) || 0;
+      const spend        = parseFloat(row[idx['Spend']])  || 0;
+      const sales        = parseFloat(row[idx['Sales']])  || 0;
+      const acos         = parseFloat(row[idx['ACOS']])   || 0;
+
+      if (!searchTerm || !campaignId) continue;
+
+      let reason = null, flag = null;
+      if (sales === 0 && (clicks >= t.clicks || spend >= t.spend)) {
+        reason = `0 Sales (${clicks} clicks, $${spend.toFixed(2)} spend)`;
+        flag   = 'zero_sales';
+      } else if (acos > (t.acos / 100)) {
+        reason = `High ACOS (${(acos * 100).toFixed(1)}%)`;
+        flag   = 'high_acos';
+      }
+
+      if (reason) {
+        const key = `${campaignId}||${adGroupId}||${searchTerm.toLowerCase()}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        results.push({ campaignId, adGroupId, searchTerm, campaignName, adGroupName,
+                       reason, flag, clicks, spend, sales, acos });
+      }
+    }
+    return results;
+  }
+
+  function processAll() {
+    const t   = getThresholds();
+    spNegatives = filterSheet(SP_SHEET, t);
+    sbNegatives = filterSheet(SB_SHEET, t);
+    renderStats();
+    renderTable('sp', spNegatives, true);
+    renderTable('sb', sbNegatives, false);
+  }
+
+  function fmtSpend(arr, flag) {
+    const v = arr.filter(n => n.flag === flag || flag === 'all').reduce((s, n) => s + (flag === 'zero_sales' ? n.spend : n.spend), 0);
+    return '$' + arr.filter(n => n.flag === 'zero_sales').reduce((s, n) => s + n.spend, 0)
+                    .toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  }
+
+  function renderStats() {
+    const spZero  = spNegatives.filter(n => n.flag === 'zero_sales').length;
+    const spAcos  = spNegatives.filter(n => n.flag === 'high_acos').length;
+    const spWaste = spNegatives.filter(n => n.flag === 'zero_sales').reduce((s, n) => s + n.spend, 0);
+
+    const sbZero  = sbNegatives.filter(n => n.flag === 'zero_sales').length;
+    const sbAcos  = sbNegatives.filter(n => n.flag === 'high_acos').length;
+    const sbWaste = sbNegatives.filter(n => n.flag === 'zero_sales').reduce((s, n) => s + n.spend, 0);
+
+    const total = spNegatives.length + sbNegatives.length;
+    const totZero  = spZero  + sbZero;
+    const totAcos  = spAcos  + sbAcos;
+    const totWaste = spWaste + sbWaste;
+
+    document.getElementById('combined-total').textContent = total.toLocaleString();
+    document.getElementById('combined-zero').textContent  = totZero.toLocaleString();
+    document.getElementById('combined-acos').textContent  = totAcos.toLocaleString();
+    document.getElementById('combined-spend').textContent = '$' + totWaste.toLocaleString('en-US', {maximumFractionDigits:0});
+
+    document.getElementById('sp-total').textContent = spNegatives.length.toLocaleString();
+    document.getElementById('sp-zero').textContent  = spZero.toLocaleString();
+    document.getElementById('sp-acos').textContent  = spAcos.toLocaleString();
+    document.getElementById('sp-spend').textContent = '$' + spWaste.toLocaleString('en-US', {maximumFractionDigits:0});
+
+    document.getElementById('sb-total').textContent = sbNegatives.length.toLocaleString();
+    document.getElementById('sb-zero').textContent  = sbZero.toLocaleString();
+    document.getElementById('sb-acos').textContent  = sbAcos.toLocaleString();
+    document.getElementById('sb-spend').textContent = '$' + sbWaste.toLocaleString('en-US', {maximumFractionDigits:0});
+
+    document.getElementById('tab-sp-count').textContent = spNegatives.length;
+    document.getElementById('tab-sb-count').textContent = sbNegatives.length;
+
+    const spTab = document.getElementById('tab-sp');
+    const sbTab = document.getElementById('tab-sb');
+    if (spNegatives.length === 0) { spTab.style.opacity = '0.4'; }
+    if (sbNegatives.length === 0) { sbTab.style.opacity = '0.4'; }
+
+    // Auto-switch to whichever has data
+    if (spNegatives.length > 0) switchTab('sp');
+    else if (sbNegatives.length > 0) switchTab('sb');
+
+    // Update download sub-label
+    const parts = [];
+    if (spNegatives.length > 0) parts.push('Sponsored Products Campaigns tab');
+    if (sbNegatives.length > 0) parts.push('Sponsored Brands Campaigns tab');
+    parts.push('Filtering Summary tab');
+    document.getElementById('download-sub').textContent = 'Includes: ' + parts.join(' · ');
+  }
+
+  function renderTable(type, negatives, includeAdGroup) {
+    const tbody = document.getElementById(type + '-tbody');
+    tbody.innerHTML = '';
+    if (negatives.length === 0) {
+      const tr = document.createElement('tr');
+      tr.className = 'empty-row';
+      const cols = includeAdGroup ? 8 : 7;
+      tr.innerHTML = `<td colspan="${cols}">No terms met the threshold criteria</td>`;
+      tbody.appendChild(tr);
+      return;
+    }
+    negatives.forEach(n => {
+      const tr = document.createElement('tr');
+      const acosDisplay = n.acos ? (n.acos * 100).toFixed(1) + '%' : '—';
+      const flagHtml = n.flag === 'zero_sales'
+        ? `<span class="flag-zero">0 Sales</span>`
+        : `<span class="flag-acos">High ACOS</span>`;
+      if (includeAdGroup) {
+        tr.innerHTML = `
+          <td title="${n.searchTerm}">${n.searchTerm}</td>
+          <td title="${n.campaignName}">${n.campaignName || n.campaignId}</td>
+          <td title="${n.adGroupName}">${n.adGroupName || n.adGroupId}</td>
+          <td>${flagHtml}</td>
+          <td>${n.clicks}</td>
+          <td>$${n.spend.toFixed(2)}</td>
+          <td>$${n.sales.toFixed(2)}</td>
+          <td>${acosDisplay}</td>`;
+      } else {
+        tr.innerHTML = `
+          <td title="${n.searchTerm}">${n.searchTerm}</td>
+          <td title="${n.campaignName}">${n.campaignName || n.campaignId}</td>
+          <td>${flagHtml}</td>
+          <td>${n.clicks}</td>
+          <td>$${n.spend.toFixed(2)}</td>
+          <td>$${n.sales.toFixed(2)}</td>
+          <td>${acosDisplay}</td>`;
+      }
+      tbody.appendChild(tr);
+    });
+  }
+
+  function switchTab(type) {
+    activeTab = type;
+    document.getElementById('pane-sp').classList.toggle('active', type === 'sp');
+    document.getElementById('pane-sb').classList.toggle('active', type === 'sb');
+    const spBtn = document.getElementById('tab-sp');
+    const sbBtn = document.getElementById('tab-sb');
+    spBtn.className = 'tab-btn' + (type === 'sp' ? ' active-sp' : '');
+    sbBtn.className = 'tab-btn' + (type === 'sb' ? ' active-sb' : '');
+  }
+  window.switchTab = switchTab;
+
+  // ── Download ──────────────────────────────────────────────────────────────────
+  btnDownload.addEventListener('click', () => {
+    if (!spNegatives.length && !sbNegatives.length) return;
+    generateFile();
+  });
+
+  function generateFile() {
+    const wb  = XLSX.utils.book_new();
+    const t   = getThresholds();
+
+    // ── Tab 1: SP Upload ─────────────────────────────────────────────────────
+    if (spNegatives.length > 0) {
+      const spHeaders = [
+        'Product','Entity','Operation','Campaign ID','Ad Group ID','Portfolio ID',
+        'Ad ID','Keyword ID','Product Targeting ID','Campaign Name','Ad Group Name',
+        'Start Date','End Date','Targeting Type','State','Daily Budget','SKU',
+        'Ad Group Default Bid','Bid','Keyword Text','Native Language Keyword',
+        'Native Language Locale','Match Type','Bidding Strategy','Placement',
+        'Percentage','Product Targeting Expression','Audience ID',
+        'Shopper Cohort Percentage','Shopper Cohort Type','Segment Name'
+      ];
+      const spRows = [spHeaders];
+      spNegatives.forEach(n => {
+        const row = new Array(31).fill('');
+        row[0]  = 'Sponsored Products';
+        row[1]  = 'Negative Keyword';
+        row[2]  = 'Create';
+        row[3]  = n.campaignId;
+        row[4]  = n.adGroupId;
+        row[14] = 'enabled';
+        row[19] = n.searchTerm;
+        row[22] = 'negativeExact';
+        spRows.push(row);
+      });
+      const wsSP = XLSX.utils.aoa_to_sheet(spRows);
+      wsSP['!cols'] = [
+        {wch:18},{wch:18},{wch:10},{wch:20},{wch:20},{wch:12},{wch:10},{wch:12},
+        {wch:22},{wch:35},{wch:30},{wch:12},{wch:12},{wch:15},{wch:10},{wch:14},
+        {wch:8},{wch:18},{wch:8},{wch:38},{wch:22},{wch:22},{wch:15},{wch:18},
+        {wch:14},{wch:12},{wch:28},{wch:14},{wch:22},{wch:20},{wch:16}
+      ];
+      XLSX.utils.book_append_sheet(wb, wsSP, 'Sponsored Products Campaigns');
+    }
+
+    // ── Tab 2: SB Upload ─────────────────────────────────────────────────────
+    if (sbNegatives.length > 0) {
+      const sbHeaders = [
+        'Product','Entity','Operation','Campaign ID','Draft Campaign ID','Portfolio ID',
+        'Ad Group ID','Keyword ID','Product Targeting ID','Campaign Name',
+        'Start Date','End Date','State','Budget Type','Budget','Bid Optimization',
+        'Bid Multiplier','Bid','Keyword Text','Match Type','Product Targeting Expression',
+        'Ad Format','Landing Page URL','Landing Page ASINs','Brand Entity ID','Brand Name',
+        'Brand Logo Asset ID','Custom Image Asset ID','Creative Headline','Creative ASINs',
+        'Video Media IDs','Creative Type'
+      ];
+      const sbRows = [sbHeaders];
+      sbNegatives.forEach(n => {
+        const row = new Array(32).fill('');
+        row[0]  = 'Sponsored Brands';
+        row[1]  = 'Negative Keyword';
+        row[2]  = 'Create';
+        row[3]  = n.campaignId;   // Campaign ID
+        row[12] = 'enabled';      // State
+        row[18] = n.searchTerm;   // Keyword Text
+        row[19] = 'negativeExact';// Match Type
+        sbRows.push(row);
+      });
+      const wsSB = XLSX.utils.aoa_to_sheet(sbRows);
+      wsSB['!cols'] = [
+        {wch:18},{wch:18},{wch:10},{wch:20},{wch:16},{wch:12},{wch:16},{wch:12},
+        {wch:22},{wch:40},{wch:12},{wch:12},{wch:10},{wch:14},{wch:14},{wch:16},
+        {wch:14},{wch:8},{wch:38},{wch:15},{wch:28},{wch:14},{wch:30},{wch:22},
+        {wch:18},{wch:22},{wch:20},{wch:22},{wch:22},{wch:20},{wch:18},{wch:16}
+      ];
+      XLSX.utils.book_append_sheet(wb, wsSB, 'Sponsored Brands Campaigns');
+    }
+
+    // ── Tab 3: Filtering Summary ─────────────────────────────────────────────
+    const all = [
+      ...spNegatives.map(n => ({...n, type: 'SP'})),
+      ...sbNegatives.map(n => ({...n, type: 'SB'}))
+    ];
+    const totZero  = all.filter(n => n.flag === 'zero_sales').length;
+    const totAcos  = all.filter(n => n.flag === 'high_acos').length;
+    const totWaste = all.filter(n => n.flag === 'zero_sales').reduce((s, n) => s + n.spend, 0);
+    const spWaste  = spNegatives.filter(n => n.flag === 'zero_sales').reduce((s, n) => s + n.spend, 0);
+    const sbWaste  = sbNegatives.filter(n => n.flag === 'zero_sales').reduce((s, n) => s + n.spend, 0);
+
+    const summaryRows = [
+      ['FILTERING SUMMARY — SP + SB COMBINED'],
+      [''],
+      ['TOTALS',           '',              'THRESHOLDS USED'],
+      ['Total Negated',    all.length,      '0 Sales Min Clicks ≥', t.clicks],
+      ['Zero Sales Terms', totZero,         '0 Sales Min Spend ≥ $', t.spend],
+      ['High ACOS Terms',  totAcos,         'Max ACOS', t.acos + '%'],
+      ['Wasted Spend (0-Sales)', `$${totWaste.toFixed(2)}`],
+      [''],
+      ['BY CAMPAIGN TYPE'],
+      ['Sponsored Products', spNegatives.length, 'terms', `$${spWaste.toFixed(2)} wasted`],
+      ['Sponsored Brands',   sbNegatives.length, 'terms', `$${sbWaste.toFixed(2)} wasted`],
+      [''],
+      ['#','Type','Campaign Name','Ad Group Name','Search Term','Flag Reason','Clicks','Spend','Sales','ACOS','Match Type']
+    ];
+    all.forEach((n, i) => {
+      summaryRows.push([
+        i + 1,
+        n.type,
+        n.campaignName || n.campaignId,
+        n.adGroupName  || (n.type === 'SB' ? '(Campaign Level)' : n.adGroupId),
+        n.searchTerm,
+        n.reason,
+        n.clicks,
+        n.spend,
+        n.sales,
+        n.acos ? (n.acos * 100).toFixed(1) + '%' : '0.0%',
+        'negativeExact'
+      ]);
+    });
+
+    const wsSummary = XLSX.utils.aoa_to_sheet(summaryRows);
+    wsSummary['!cols'] = [
+      {wch:5},{wch:5},{wch:45},{wch:35},{wch:42},{wch:38},{wch:8},{wch:12},{wch:10},{wch:10},{wch:14}
+    ];
+    XLSX.utils.book_append_sheet(wb, wsSummary, 'Filtering Summary');
+
+    const date = new Date().toISOString().split('T')[0];
+    XLSX.writeFile(wb, `Negative_Keywords_SP_SB_${date}.xlsx`);
+  }
+
+  // ── Reset ─────────────────────────────────────────────────────────────────────
+  btnReset.addEventListener('click', () => {
+    workbookData = spNegatives = sbNegatives = null;
+    spNegatives = []; sbNegatives = [];
+    fileInput.value = '';
+    dropZone.classList.remove('loaded');
+    document.getElementById('drop-icon').textContent  = '📂';
+    document.getElementById('drop-title').textContent = 'Drop your bulk .xlsx file here';
+    document.getElementById('drop-sub').textContent   = 'or click to browse';
+    document.getElementById('sheets-found').classList.remove('visible');
+    btnProcess.disabled = true;
+    results.classList.remove('visible');
+    clearError();
+    document.getElementById('tab-sp').style.opacity = '';
+    document.getElementById('tab-sb').style.opacity = '';
+  });
+</script>
+</body>
+</html>
