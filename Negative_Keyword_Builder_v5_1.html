@@ -1,0 +1,853 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Negative Keyword Builder</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap');
+  :root {
+    --orange:#FF6B00;--orange-light:#FF8C3A;--orange-dim:rgba(255,107,0,0.12);--orange-glow:rgba(255,107,0,0.35);
+    --blue:#3B9EFF;--blue-dim:rgba(59,158,255,0.12);
+    --purple:#A855F7;--purple-dim:rgba(168,85,247,0.12);
+    --bg:#0E0E0F;--surface:#161618;--surface2:#1E1E21;
+    --border:rgba(255,255,255,0.07);--border-active:rgba(255,107,0,0.4);
+    --text:#F0EDE8;--text-muted:#7A7875;--text-dim:#3A3835;
+    --green:#2ECC8A;--red:#FF4757;--yellow:#FFD32A;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-height:100vh;}
+  body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(255,107,0,0.025) 1px,transparent 1px),linear-gradient(90deg,rgba(255,107,0,0.025) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0;}
+  .wrap{position:relative;z-index:1;max-width:1040px;margin:0 auto;padding:48px 24px 80px;}
+
+  .header{margin-bottom:44px;}
+  .header-tag{font-family:'DM Mono',monospace;font-size:11px;color:var(--orange);letter-spacing:.15em;text-transform:uppercase;margin-bottom:12px;}
+  .header h1{font-size:clamp(28px,4.5vw,48px);font-weight:800;line-height:1.05;letter-spacing:-.02em;}
+  .header h1 .accent{color:var(--orange);}
+  .header p{margin-top:12px;color:var(--text-muted);font-size:14px;max-width:580px;line-height:1.65;}
+
+  .section-label{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--text-muted);margin-bottom:12px;}
+
+  .mode-toggle{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:32px;}
+  .mode-btn{padding:14px 18px;border-radius:10px;border:1px solid var(--border);background:var(--surface);color:var(--text-muted);font-family:'Syne',sans-serif;font-size:13px;font-weight:700;letter-spacing:.03em;cursor:pointer;transition:all .2s;text-align:left;}
+  .mode-btn .mt{display:flex;align-items:center;gap:8px;margin-bottom:4px;}
+  .mode-btn .md{font-family:'DM Mono',monospace;font-size:10px;color:var(--text-dim);font-weight:400;letter-spacing:.04em;line-height:1.5;}
+  .mode-btn.active{border-color:var(--orange);background:var(--orange-dim);color:var(--text);}
+  .mode-btn.active .md{color:rgba(255,107,0,.6);}
+
+  .thresholds{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:28px;}
+  @media(max-width:600px){.thresholds{grid-template-columns:1fr;}}
+  .tc{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px 20px;transition:border-color .2s;}
+  .tc:focus-within{border-color:var(--border-active);}
+  .tc label{display:block;font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:.06em;margin-bottom:10px;text-transform:uppercase;}
+  .ip{display:flex;align-items:center;gap:8px;}
+  .ps{font-family:'DM Mono',monospace;font-size:14px;color:var(--orange);font-weight:500;min-width:16px;}
+  .tc input{background:transparent;border:none;outline:none;color:var(--text);font-family:'DM Mono',monospace;font-size:22px;font-weight:500;width:100%;}
+  .td{font-size:11px;color:var(--text-dim);margin-top:6px;font-family:'DM Mono',monospace;}
+
+  .drop-zone{border:1.5px dashed var(--border);border-radius:14px;padding:48px 32px;text-align:center;cursor:pointer;transition:border-color .25s,background .25s;margin-bottom:28px;position:relative;background:var(--surface);}
+  .drop-zone:hover,.drop-zone.drag-over{border-color:var(--orange);background:var(--orange-dim);}
+  .drop-zone input[type="file"]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
+  .di{font-size:34px;margin-bottom:12px;display:block;}
+  .dt{font-size:16px;font-weight:700;margin-bottom:6px;}
+  .ds{font-size:12px;color:var(--text-muted);font-family:'DM Mono',monospace;}
+  .drop-zone.loaded{border-color:var(--green);background:rgba(46,204,138,.06);}
+  .det{display:none;gap:8px;flex-wrap:wrap;margin-top:14px;justify-content:center;}
+  .det.v{display:flex;}
+  .db{font-family:'DM Mono',monospace;font-size:11px;padding:3px 12px;border-radius:20px;font-weight:500;}
+  .db.ok{background:var(--orange-dim);color:var(--orange);}
+  .db.bl{background:var(--blue-dim);color:var(--blue);}
+  .db.pu{background:var(--purple-dim);color:var(--purple);}
+  .db.ms{background:rgba(255,71,87,.12);color:var(--red);}
+
+  .btn-process{width:100%;padding:18px;background:var(--orange);border:none;border-radius:10px;color:white;font-family:'Syne',sans-serif;font-size:15px;font-weight:700;letter-spacing:.04em;cursor:pointer;transition:background .2s,transform .1s,box-shadow .2s;text-transform:uppercase;margin-bottom:28px;}
+  .btn-process:hover:not(:disabled){background:var(--orange-light);box-shadow:0 4px 28px var(--orange-glow);transform:translateY(-1px);}
+  .btn-process:active:not(:disabled){transform:translateY(0);}
+  .btn-process:disabled{opacity:.3;cursor:not-allowed;}
+
+  .err{background:rgba(255,71,87,.1);border:1px solid rgba(255,71,87,.3);border-radius:10px;padding:14px 18px;font-family:'DM Mono',monospace;font-size:12px;color:var(--red);margin-bottom:20px;display:none;}
+  .err.v{display:block;}
+  .ldg{text-align:center;padding:20px;font-family:'DM Mono',monospace;font-size:13px;color:var(--text-muted);display:none;}
+  .ldg.v{display:block;}
+  .ldg::after{content:'';display:inline-block;width:12px;height:12px;border:2px solid var(--orange);border-top-color:transparent;border-radius:50%;animation:spin .7s linear infinite;margin-left:10px;vertical-align:middle;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  .results{display:none;}
+  .results.v{display:block;}
+
+  .cbar{background:var(--surface);border:1px solid var(--border-active);border-radius:12px;padding:20px 24px;display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-bottom:24px;}
+  .ctot{font-family:'DM Mono',monospace;font-size:38px;font-weight:500;color:var(--orange);line-height:1;}
+  .clbl{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);font-weight:600;margin-bottom:4px;}
+  .cright{display:flex;gap:28px;flex-wrap:wrap;}
+  .cstat .val{font-family:'DM Mono',monospace;font-size:20px;font-weight:500;line-height:1;margin-bottom:4px;}
+  .cstat .lbl{font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;font-weight:600;}
+
+  .agrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;margin-bottom:28px;}
+  .acard{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;}
+  .ahead{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+  .aname{font-size:13px;font-weight:700;}
+  .atot{font-family:'DM Mono',monospace;font-size:11px;padding:3px 10px;border-radius:20px;background:var(--orange-dim);color:var(--orange);}
+  .abreak{display:grid;grid-template-columns:repeat(3,1fr);border-bottom:1px solid var(--border);}
+  .abi{padding:10px 14px;border-right:1px solid var(--border);}
+  .abi:last-child{border-right:none;}
+  .abi .av{font-family:'DM Mono',monospace;font-size:15px;font-weight:500;line-height:1;margin-bottom:3px;}
+  .abi .al{font-size:9px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;font-weight:600;}
+  .abi.z .av{color:var(--yellow);}
+  .abi.p .av{color:var(--red);}
+  .abi.s .av{color:var(--green);}
+  .atypes{padding:10px 14px;display:flex;gap:6px;flex-wrap:wrap;}
+  .tpill{font-family:'DM Mono',monospace;font-size:10px;padding:2px 8px;border-radius:4px;font-weight:500;}
+  .tpill.sp{background:var(--orange-dim);color:var(--orange);}
+  .tpill.sb{background:var(--blue-dim);color:var(--blue);}
+  .tpill.sd{background:var(--purple-dim);color:var(--purple);}
+
+  .twrap{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:24px;}
+  .tctrl{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  .ttitle{font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;margin-right:auto;}
+  .fsel{font-family:'DM Mono',monospace;font-size:11px;padding:5px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text-muted);cursor:pointer;outline:none;}
+  .fsel:focus{border-color:var(--border-active);}
+  .tscroll{overflow-x:auto;max-height:360px;overflow-y:auto;}
+  table{width:100%;border-collapse:collapse;font-size:12px;}
+  thead th{background:var(--surface2);padding:10px 14px;text-align:left;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-muted);position:sticky;top:0;white-space:nowrap;border-bottom:1px solid var(--border);}
+  tbody tr{border-bottom:1px solid var(--border);transition:background .1s;}
+  tbody tr:hover{background:var(--surface2);}
+  tbody tr:last-child{border-bottom:none;}
+  tbody td{padding:9px 14px;font-family:'DM Mono',monospace;font-size:11px;color:var(--text);white-space:nowrap;max-width:200px;overflow:hidden;text-overflow:ellipsis;}
+  .fz{background:rgba(255,211,42,.12);color:var(--yellow);padding:2px 8px;border-radius:4px;font-size:10px;}
+  .fp{background:rgba(255,71,87,.12);color:var(--red);padding:2px 8px;border-radius:4px;font-size:10px;}
+  .bsp{background:var(--orange-dim);color:var(--orange);padding:2px 7px;border-radius:4px;font-size:10px;}
+  .bsb{background:var(--blue-dim);color:var(--blue);padding:2px 7px;border-radius:4px;font-size:10px;}
+  .bsd{background:var(--purple-dim);color:var(--purple);padding:2px 7px;border-radius:4px;font-size:10px;}
+  .erow td{text-align:center;padding:32px;color:var(--text-muted);font-style:italic;}
+
+  .dlsec{margin-bottom:24px;}
+  .dlgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px;margin-bottom:16px;}
+  .btn-dla{padding:14px 18px;background:transparent;border:1.5px solid var(--border);border-radius:10px;color:var(--text);font-family:'Syne',sans-serif;font-size:12px;font-weight:700;cursor:pointer;transition:all .2s;text-align:left;display:flex;flex-direction:column;gap:5px;}
+  .btn-dla:hover{border-color:var(--orange);background:var(--orange-dim);}
+  .dan{font-size:13px;font-weight:700;}
+  .das{font-family:'DM Mono',monospace;font-size:10px;color:var(--text-muted);}
+  .dat{display:flex;gap:5px;margin-top:2px;}
+
+  .dlglobal{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .btn-dl{padding:16px 18px;background:transparent;border:1.5px solid var(--orange);border-radius:10px;color:var(--orange);font-family:'Syne',sans-serif;font-size:13px;font-weight:700;letter-spacing:.03em;cursor:pointer;transition:all .2s;text-transform:uppercase;display:flex;align-items:center;justify-content:center;gap:8px;}
+  .btn-dl:hover{background:var(--orange);color:white;box-shadow:0 4px 28px var(--orange-glow);}
+  .btn-dl.g{border-color:var(--green);color:var(--green);}
+  .btn-dl.g:hover{background:var(--green);color:white;box-shadow:0 4px 28px rgba(46,204,138,.35);}
+  .dlnote{font-family:'DM Mono',monospace;font-size:11px;color:var(--text-muted);margin-top:10px;text-align:center;}
+
+  /* ── Threshold mode toggle ── */
+  .thresh-mode-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px;}
+  .tmode-btn{display:flex;align-items:center;gap:12px;padding:14px 18px;border-radius:10px;border:1px solid var(--border);background:var(--surface);color:var(--text-muted);font-family:'Syne',sans-serif;cursor:pointer;transition:all .2s;text-align:left;}
+  .tmode-btn:hover{border-color:var(--border-active);}
+  .tmode-btn.active{border-color:var(--orange);background:var(--orange-dim);color:var(--text);}
+  .tmode-icon{font-size:20px;flex-shrink:0;}
+  .tmode-title{font-size:13px;font-weight:700;margin-bottom:2px;}
+  .tmode-desc{font-family:'DM Mono',monospace;font-size:10px;color:var(--text-muted);font-weight:400;line-height:1.4;}
+  .tmode-btn.active .tmode-desc{color:rgba(255,107,0,.6);}
+
+  .global-note{font-family:'DM Mono',monospace;font-size:11px;color:var(--text-muted);margin-top:-10px;margin-bottom:28px;padding:10px 14px;background:var(--surface);border:1px solid var(--border);border-radius:8px;}
+
+  /* ── Per-account threshold cards ── */
+  .peracct-waiting{display:flex;align-items:center;gap:12px;padding:24px 20px;background:var(--surface);border:1.5px dashed var(--border);border-radius:12px;margin-bottom:28px;font-family:'DM Mono',monospace;font-size:12px;color:var(--text-muted);}
+  .peracct-header-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px;}
+  .reset-defaults-btn{font-family:'DM Mono',monospace;font-size:11px;color:var(--text-muted);background:none;border:1px solid var(--border);border-radius:6px;padding:6px 12px;cursor:pointer;transition:all .2s;letter-spacing:.04em;}
+  .reset-defaults-btn:hover{border-color:var(--orange);color:var(--orange);}
+
+  .pa-cards-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px;margin-bottom:28px;}
+  .pa-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;transition:border-color .2s;}
+  .pa-card.modified{border-color:var(--orange);}
+  .pa-card-head{padding:13px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+  .pa-card-name{font-size:13px;font-weight:700;}
+  .pa-modified-badge{font-family:'DM Mono',monospace;font-size:9px;padding:2px 8px;border-radius:10px;background:var(--orange-dim);color:var(--orange);display:none;}
+  .pa-card.modified .pa-modified-badge{display:inline;}
+  .pa-fields{display:grid;grid-template-columns:repeat(3,1fr);gap:0;}
+  .pa-field{padding:12px 14px;border-right:1px solid var(--border);}
+  .pa-field:last-child{border-right:none;}
+  .pa-field label{display:block;font-size:9px;font-weight:600;color:var(--text-muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:7px;}
+  .pa-field-ip{display:flex;align-items:center;gap:5px;}
+  .pa-field-sym{font-family:'DM Mono',monospace;font-size:12px;color:var(--orange);font-weight:500;}
+  .pa-field input{background:transparent;border:none;outline:none;color:var(--text);font-family:'DM Mono',monospace;font-size:17px;font-weight:500;width:100%;}
+  .pa-field input:focus{color:var(--orange);}
+  .pa-reset-btn{display:block;width:100%;padding:8px;background:none;border:none;border-top:1px solid var(--border);font-family:'DM Mono',monospace;font-size:10px;color:var(--text-dim);cursor:pointer;transition:color .2s;letter-spacing:.06em;text-transform:uppercase;}
+  .pa-reset-btn:hover{color:var(--text-muted);}
+
+  .btn-clear-file{width:100%;padding:10px;background:none;border:1px solid rgba(255,71,87,.3);border-radius:8px;color:var(--red);font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;transition:all .2s;}
+  .btn-clear-file:hover{background:rgba(255,71,87,.08);border-color:var(--red);}
+  hr.div{border:none;border-top:1px solid var(--border);margin:32px 0;}
+  .rl{font-family:'DM Mono',monospace;font-size:11px;color:var(--text-muted);cursor:pointer;background:none;border:none;padding:0;display:block;text-align:center;transition:color .2s;letter-spacing:.08em;text-transform:uppercase;}
+  .rl:hover{color:var(--orange);}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="header">
+    <div class="header-tag">Amazon Ads · Multi-Account Negative Keyword Builder</div>
+    <h1>Negative Keyword<br><span class="accent">Builder</span></h1>
+    <p>Supports Amazon bulk exports (.xlsx) and custom multi-account CSV reports. Automatically generates a separate upload-ready file per advertiser account.</p>
+  </div>
+
+  <!-- Step 1: Mode -->
+  <div class="section-label">Step 1 — Select Report Type</div>
+  <div class="mode-toggle">
+    <button class="mode-btn" id="mode-bulk" onclick="setMode('bulk')">
+      <div class="mt">📊 Bulk File <span style="font-size:11px;opacity:.5">(.xlsx)</span></div>
+      <div class="md">SP + SB search term tabs · single account · ACOS metric</div>
+    </button>
+    <button class="mode-btn active" id="mode-csv" onclick="setMode('csv')">
+      <div class="mt">📋 Custom CSV Report <span style="font-size:11px;opacity:.5">(.csv)</span></div>
+      <div class="md">Multi-account · Ad product column · ROAS metric · aggregated daily data</div>
+    </button>
+  </div>
+
+  <!-- Step 2: Thresholds -->
+  <div class="section-label">Step 2 — Set Thresholds</div>
+
+  <div class="thresh-mode-row">
+    <button class="tmode-btn active" id="tmode-global" onclick="setThreshMode('global')">
+      <span class="tmode-icon">🌐</span>
+      <div>
+        <div class="tmode-title">Global Thresholds</div>
+        <div class="tmode-desc">Same rules apply to all accounts</div>
+      </div>
+    </button>
+    <button class="tmode-btn" id="tmode-peracct" onclick="setThreshMode('peracct')">
+      <span class="tmode-icon">🎯</span>
+      <div>
+        <div class="tmode-title">Per-Account Thresholds</div>
+        <div class="tmode-desc">Custom goals per account · upload file first to detect accounts</div>
+      </div>
+    </button>
+  </div>
+
+  <div id="global-thresh-panel">
+    <div class="thresholds">
+      <div class="tc">
+        <label>Zero Sales: Min Clicks</label>
+        <div class="ip"><span class="ps">#</span><input type="number" id="thresh-clicks" value="15" min="1"></div>
+        <div class="td">clicks with 0 sales → negate</div>
+      </div>
+      <div class="tc">
+        <label>Zero Sales: Min Spend</label>
+        <div class="ip"><span class="ps">$</span><input type="number" id="thresh-spend" value="20" min="0" step="0.01"></div>
+        <div class="td">ad spend with 0 sales → negate</div>
+      </div>
+      <div class="tc">
+        <label id="perf-label">Min Acceptable ROAS</label>
+        <div class="ip"><span class="ps" id="perf-sym">×</span><input type="number" id="thresh-perf" value="1.35" min="0" step="0.01"></div>
+        <div class="td" id="perf-desc">below this (with sales) → negate</div>
+      </div>
+    </div>
+    <div class="global-note" id="global-note">These values are also used as defaults for any account without a custom threshold set.</div>
+  </div>
+
+  <div id="peracct-thresh-panel" style="display:none;">
+    <div class="peracct-waiting" id="peracct-waiting">
+      <span style="font-size:22px;">📂</span>
+      <span>Upload your file in Step 3 — accounts will be auto-detected and threshold cards will appear here.</span>
+    </div>
+    <div id="peracct-cards-wrap" style="display:none;">
+      <div class="peracct-header-row">
+        <div>
+          <div style="font-size:13px;font-weight:700;margin-bottom:3px;">Account-Level Thresholds</div>
+          <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-muted);">Pre-filled with defaults · edit any account to override</div>
+        </div>
+        <button class="reset-defaults-btn" onclick="resetAllToDefaults()">↺ Reset All to Defaults</button>
+      </div>
+      <div id="peracct-cards"></div>
+    </div>
+  </div>
+
+  <!-- Step 3: Upload -->
+  <div class="section-label">Step 3 — Upload Report File</div>
+  <div class="drop-zone" id="drop-zone">
+    <input type="file" id="file-input" accept=".csv">
+    <span class="di" id="drop-icon">📂</span>
+    <div class="dt" id="drop-title">Drop your CSV report file here</div>
+    <div class="ds" id="drop-sub">or click to browse · accepts .csv files</div>
+    <div class="det" id="det-info"></div>
+  </div>
+  <div class="err" id="err-box"></div>
+  <div id="clear-file-row" style="display:none;margin-bottom:16px;">
+    <button class="btn-clear-file" id="btn-clear-file" onclick="resetFile()">✕ Clear uploaded file</button>
+  </div>
+  <button class="btn-process" id="btn-process" disabled>⚡ Process &amp; Filter Search Terms</button>
+  <div class="ldg" id="loading">Processing &amp; aggregating search terms</div>
+
+  <!-- Results -->
+  <div class="results" id="results">
+    <div class="section-label">Results</div>
+    <div class="cbar">
+      <div>
+        <div class="clbl">Total Terms to Negate</div>
+        <div class="ctot" id="stat-total">—</div>
+      </div>
+      <div class="cright">
+        <div class="cstat"><div class="val" id="stat-zero" style="color:var(--yellow)">—</div><div class="lbl">Zero Sales</div></div>
+        <div class="cstat"><div class="val" id="stat-perf" style="color:var(--red)">—</div><div class="lbl" id="stat-perf-lbl">Low ROAS</div></div>
+        <div class="cstat"><div class="val" id="stat-spend" style="color:var(--green)">—</div><div class="lbl">Wasted Spend</div></div>
+        <div class="cstat"><div class="val" id="stat-accts" style="color:var(--blue)">—</div><div class="lbl">Accounts</div></div>
+      </div>
+    </div>
+
+    <div class="section-label">By Account</div>
+    <div class="agrid" id="acct-grid"></div>
+
+    <div class="twrap">
+      <div class="tctrl">
+        <div class="ttitle">Preview</div>
+        <select class="fsel" id="filt-acct" onchange="renderPreview()"><option value="all">All Accounts</option></select>
+        <select class="fsel" id="filt-type" onchange="renderPreview()">
+          <option value="all">All Ad Types</option>
+          <option value="Sponsored Products">Sponsored Products</option>
+          <option value="Sponsored Brands">Sponsored Brands</option>
+          <option value="Sponsored Display">Sponsored Display</option>
+        </select>
+        <select class="fsel" id="filt-flag" onchange="renderPreview()">
+          <option value="all">All Flags</option>
+          <option value="zero_sales">Zero Sales</option>
+          <option value="low_perf">Low ROAS / High ACOS</option>
+        </select>
+      </div>
+      <div class="tscroll">
+        <table>
+          <thead><tr>
+            <th>Search Term</th><th>Account</th><th>Ad Type</th>
+            <th>Campaign ID</th><th>Ad Group ID</th><th>Flag</th>
+            <th>Clicks</th><th>Spend</th><th>Sales</th><th id="th-perf">ROAS</th>
+          </tr></thead>
+          <tbody id="prev-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="dlsec">
+      <div class="section-label">Download — Per Account Upload Files</div>
+      <div class="dlgrid" id="dl-acct-grid"></div>
+      <div class="section-label" style="margin-top:20px;">Global</div>
+      <div class="dlglobal">
+        <button class="btn-dl" id="btn-dl-all">⬇ All Accounts (Download Each)</button>
+        <button class="btn-dl g" id="btn-dl-sum">⬇ Filtering Summary</button>
+      </div>
+      <div class="dlnote">Per-account files = SP + SB upload tabs only (Amazon-ready) &nbsp;·&nbsp; Summary = separate reference file</div>
+    </div>
+
+    <hr class="div">
+    <button class="rl" id="btn-reset">↺ Process a new file</button>
+  </div>
+
+</div>
+<script>
+let mode = 'csv';
+let threshMode = 'global';        // 'global' | 'peracct'
+let fileData = null;
+let allNegs = [];
+let detectedAccounts = [];        // accounts found in uploaded file
+let acctThresholds = {};          // { accountName: {clicks, spend, perf} }
+
+const DEFAULTS = { clicks: 15, spend: 20, perf: 1.35 };
+
+// ── Mode ───────────────────────────────────────────────────────────────────────
+function setMode(m) {
+  mode = m;
+  document.getElementById('mode-bulk').classList.toggle('active', m==='bulk');
+  document.getElementById('mode-csv').classList.toggle('active',  m==='csv');
+  const isCsv = m === 'csv';
+  document.getElementById('perf-label').textContent = isCsv ? 'Min Acceptable ROAS' : 'Max Acceptable ACOS';
+  document.getElementById('perf-sym').textContent   = isCsv ? '×' : '%';
+  document.getElementById('perf-desc').textContent  = isCsv ? 'below this (with sales) → negate' : 'above this (with sales) → negate';
+  document.getElementById('thresh-perf').value      = isCsv ? 1.35 : 74;
+  document.getElementById('thresh-perf').step       = isCsv ? '0.01' : '1';
+  document.getElementById('th-perf').textContent    = isCsv ? 'ROAS' : 'ACOS';
+  document.getElementById('stat-perf-lbl').textContent = isCsv ? 'Low ROAS' : 'High ACOS';
+  document.getElementById('file-input').accept      = isCsv ? '.csv' : '.xlsx,.xls';
+  document.getElementById('drop-title').textContent = isCsv ? 'Drop your CSV report file here' : 'Drop your bulk .xlsx file here';
+  document.getElementById('drop-sub').textContent   = isCsv ? 'or click to browse · accepts .csv files' : 'or click to browse · accepts .xlsx files';
+  resetFile();
+}
+
+// ── Threshold mode ───────────────────────────────────────────────────────────
+function setThreshMode(m) {
+  threshMode = m;
+  document.getElementById('tmode-global').classList.toggle('active', m==='global');
+  document.getElementById('tmode-peracct').classList.toggle('active', m==='peracct');
+  document.getElementById('global-thresh-panel').style.display = m==='global' ? '' : 'none';
+  document.getElementById('peracct-thresh-panel').style.display = m==='peracct' ? '' : 'none';
+  document.getElementById('global-note').style.display = m==='global' ? '' : 'none';
+  // If file already loaded, show per-account cards immediately
+  if (m==='peracct' && detectedAccounts.length > 0) renderPerAcctCards();
+}
+
+function getDefaultPerf() {
+  return mode === 'csv' ? 1.35 : 74;
+}
+
+function renderPerAcctCards() {
+  document.getElementById('peracct-waiting').style.display = 'none';
+  document.getElementById('peracct-cards-wrap').style.display = '';
+  const container = document.getElementById('peracct-cards');
+  container.innerHTML = '<div class="pa-cards-grid" id="pa-cards-grid"></div>';
+  const grid = document.getElementById('pa-cards-grid');
+  const isCsv = mode === 'csv';
+  const perfSym = isCsv ? '×' : '%';
+  const perfLbl = isCsv ? 'Min ROAS' : 'Max ACOS';
+
+  detectedAccounts.forEach(acct => {
+    const cur = acctThresholds[acct] || { clicks: DEFAULTS.clicks, spend: DEFAULTS.spend, perf: getDefaultPerf() };
+    const safe = acct.replace(/[^a-z0-9]/gi,'_');
+    const card = document.createElement('div');
+    card.className = 'pa-card'; card.id = 'pa-card-'+safe;
+    card.innerHTML = `
+      <div class="pa-card-head">
+        <div class="pa-card-name">${acct}</div>
+        <span class="pa-modified-badge">CUSTOM</span>
+      </div>
+      <div class="pa-fields">
+        <div class="pa-field">
+          <label>0 Sales Clicks</label>
+          <div class="pa-field-ip"><span class="pa-field-sym">#</span>
+            <input type="number" id="pa-clicks-${safe}" value="${cur.clicks}" min="1" oninput="markModified('${safe}','${acct}')">
+          </div>
+        </div>
+        <div class="pa-field">
+          <label>0 Sales Spend</label>
+          <div class="pa-field-ip"><span class="pa-field-sym">$</span>
+            <input type="number" id="pa-spend-${safe}" value="${cur.spend}" min="0" step="0.01" oninput="markModified('${safe}','${acct}')">
+          </div>
+        </div>
+        <div class="pa-field">
+          <label>${perfLbl}</label>
+          <div class="pa-field-ip"><span class="pa-field-sym">${perfSym}</span>
+            <input type="number" id="pa-perf-${safe}" value="${cur.perf}" min="0" step="${isCsv?'0.01':'1'}" oninput="markModified('${safe}','${acct}')">
+          </div>
+        </div>
+      </div>
+      <button class="pa-reset-btn" onclick="resetAcctToDefault('${safe}','${acct}')">↺ reset to defaults</button>`;
+    grid.appendChild(card);
+  });
+}
+
+function markModified(safe, acct) {
+  const card = document.getElementById('pa-card-'+safe);
+  const clicks = parseFloat(document.getElementById('pa-clicks-'+safe).value) || DEFAULTS.clicks;
+  const spend  = parseFloat(document.getElementById('pa-spend-'+safe).value)  || DEFAULTS.spend;
+  const perf   = parseFloat(document.getElementById('pa-perf-'+safe).value)   || getDefaultPerf();
+  acctThresholds[acct] = { clicks, spend, perf };
+  const isDefault = clicks===DEFAULTS.clicks && spend===DEFAULTS.spend && perf===getDefaultPerf();
+  card.classList.toggle('modified', !isDefault);
+}
+
+function resetAcctToDefault(safe, acct) {
+  document.getElementById('pa-clicks-'+safe).value = DEFAULTS.clicks;
+  document.getElementById('pa-spend-'+safe).value  = DEFAULTS.spend;
+  document.getElementById('pa-perf-'+safe).value   = getDefaultPerf();
+  acctThresholds[acct] = { clicks: DEFAULTS.clicks, spend: DEFAULTS.spend, perf: getDefaultPerf() };
+  document.getElementById('pa-card-'+safe).classList.remove('modified');
+}
+
+function resetAllToDefaults() {
+  detectedAccounts.forEach(acct => {
+    const safe = acct.replace(/[^a-z0-9]/gi,'_');
+    resetAcctToDefault(safe, acct);
+  });
+}
+
+function getThreshForAccount(acct) {
+  if (threshMode === 'global') {
+    return getT();
+  }
+  // Per-account mode: use saved thresholds, else defaults
+  return acctThresholds[acct] || { clicks: DEFAULTS.clicks, spend: DEFAULTS.spend, perf: getDefaultPerf() };
+}
+
+// ── File handling ──────────────────────────────────────────────────────────────
+const dz = document.getElementById('drop-zone');
+const fi = document.getElementById('file-input');
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
+dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('drag-over'); if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]); });
+fi.addEventListener('change', e => { if (e.target.files[0]) handleFile(e.target.files[0]); });
+
+function showErr(msg) { const b=document.getElementById('err-box'); b.textContent='⚠ '+msg; b.classList.add('v'); }
+function clearErr()   { document.getElementById('err-box').classList.remove('v'); }
+
+function handleFile(file) {
+  clearErr();
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      if (mode === 'csv') {
+        const text = new TextDecoder('utf-8').decode(new Uint8Array(e.target.result));
+        loadCSV(text, file.name);
+      } else {
+        const wb = XLSX.read(new Uint8Array(e.target.result), { type:'array' });
+        loadXLSX(wb, file.name);
+      }
+    } catch(err) { showErr('Could not read file: ' + err.message); }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function parseCSVLine(line) {
+  const res=[]; let cur=''; let inQ=false;
+  for (let i=0;i<line.length;i++) {
+    const c=line[i];
+    if (c==='"') { inQ=!inQ; }
+    else if (c===',' && !inQ) { res.push(cur.trim()); cur=''; }
+    else cur+=c;
+  }
+  res.push(cur.trim()); return res;
+}
+
+function cleanId(v) { return String(v||'').replace(/^="?/,'').replace(/"?$/,'').replace(/"/g,'').trim(); }
+
+function loadCSV(text, fname) {
+  const lines = text.trim().split(/\r?\n/);
+  const headers = parseCSVLine(lines[0]);
+  const required = ['Campaign ID','Ad group ID','Search term','Advertiser account name','Ad product','Clicks','Total cost','Sales','ROAS'];
+  const missing = required.filter(r => !headers.includes(r));
+  if (missing.length) { showErr('Missing columns: ' + missing.join(', ')); return; }
+
+  const idxA = headers.indexOf('Advertiser account name');
+  const idxP = headers.indexOf('Ad product');
+  const accounts = new Set(), adProds = new Set();
+  for (let i=1;i<lines.length;i++) {
+    const c = parseCSVLine(lines[i]);
+    if (c[idxA]) accounts.add(c[idxA]);
+    if (c[idxP]) adProds.add(c[idxP]);
+  }
+
+  fileData = { type:'csv', text, headers, lines };
+  detectedAccounts = [...accounts].sort();
+  // Init per-account thresholds to defaults for any new accounts
+  detectedAccounts.forEach(a => { if (!acctThresholds[a]) acctThresholds[a] = { clicks: DEFAULTS.clicks, spend: DEFAULTS.spend, perf: getDefaultPerf() }; });
+  setLoaded(fname, `${accounts.size} accounts · ${lines.length-1} rows`);
+  showDetected(
+    [...accounts].map(a => ({label:a,cls:'pu'})),
+    [...adProds].map(p => ({label:p, cls: p==='Sponsored Products'?'ok': p==='Sponsored Brands'?'bl':'pu'}))
+  );
+  if (threshMode === 'peracct') renderPerAcctCards();
+}
+
+function loadXLSX(wb, fname) {
+  const hasSP = wb.SheetNames.includes('SP Search Term Report');
+  const hasSB = wb.SheetNames.includes('SB Search Term Report');
+  if (!hasSP && !hasSB) { showErr('No SP or SB Search Term Report tabs found.'); return; }
+  fileData = { type:'xlsx', wb };
+  detectedAccounts = ['Single Account'];
+  if (!acctThresholds['Single Account']) acctThresholds['Single Account'] = { clicks: DEFAULTS.clicks, spend: DEFAULTS.spend, perf: getDefaultPerf() };
+  setLoaded(fname, 'Bulk file loaded');
+  showDetected([
+    {label: hasSP ? '✓ SP Search Term Report':'✗ SP tab missing', cls: hasSP?'ok':'ms'},
+    {label: hasSB ? '✓ SB Search Term Report':'✗ SB tab missing', cls: hasSB?'ok':'ms'}
+  ]);
+  if (threshMode === 'peracct') renderPerAcctCards();
+}
+
+function setLoaded(fname, sub) {
+  dz.classList.add('loaded');
+  document.getElementById('drop-icon').textContent  = '✅';
+  document.getElementById('drop-title').textContent = fname;
+  document.getElementById('drop-sub').textContent   = sub;
+  document.getElementById('btn-process').disabled = false;
+  document.getElementById('clear-file-row').style.display = '';
+}
+
+function showDetected(...groups) {
+  const det = document.getElementById('det-info');
+  det.innerHTML = '';
+  groups.forEach(group => group.forEach(({label,cls}) => {
+    const s = document.createElement('span'); s.className='db '+cls; s.textContent=label; det.appendChild(s);
+  }));
+  det.classList.add('v');
+}
+
+// ── Process ────────────────────────────────────────────────────────────────────
+document.getElementById('btn-process').addEventListener('click', () => {
+  clearErr();
+  document.getElementById('loading').classList.add('v');
+  document.getElementById('btn-process').disabled = true;
+  document.getElementById('results').classList.remove('v');
+  setTimeout(() => {
+    try {
+      allNegs = mode==='csv' ? processCSV() : processXLSX();
+      document.getElementById('loading').classList.remove('v');
+      renderResults();
+      document.getElementById('results').classList.add('v');
+    } catch(err) {
+      document.getElementById('loading').classList.remove('v');
+      showErr('Processing error: ' + err.message);
+      document.getElementById('btn-process').disabled = false;
+    }
+  }, 60);
+});
+
+function getT() {
+  return {
+    clicks: parseFloat(document.getElementById('thresh-clicks').value)||15,
+    spend:  parseFloat(document.getElementById('thresh-spend').value)||20,
+    perf:   parseFloat(document.getElementById('thresh-perf').value)||(mode==='csv'?1.35:74),
+  };
+}
+
+function processCSV() {
+  const { headers, lines } = fileData;
+  const idx = {};
+  headers.forEach((h,i) => idx[h]=i);
+  const agg = new Map();
+
+  for (let i=1;i<lines.length;i++) {
+    const c = parseCSVLine(lines[i]);
+    if (c.length < 5) continue;
+    const account   = (c[idx['Advertiser account name']]||'').trim();
+    const adProduct = (c[idx['Ad product']]||'').trim();
+    const campId    = cleanId(c[idx['Campaign ID']]);
+    const agId      = cleanId(c[idx['Ad group ID']]);
+    const term      = (c[idx['Search term']]||'').trim();
+    const clicks    = parseFloat(c[idx['Clicks']])     ||0;
+    const spend     = parseFloat(c[idx['Total cost']]) ||0;
+    const sales     = parseFloat(c[idx['Sales']])      ||0;
+    if (!term || !campId || !account) continue;
+    const key = `${account}||${adProduct}||${campId}||${agId}||${term.toLowerCase()}`;
+    if (!agg.has(key)) agg.set(key, {account,adProduct,campId,agId,term,clicks:0,spend:0,sales:0});
+    const r = agg.get(key);
+    r.clicks+=clicks; r.spend+=spend; r.sales+=sales;
+  }
+
+  const negs = [];
+  agg.forEach(r => {
+    const t    = getThreshForAccount(r.account);
+    const roas = r.spend>0 ? r.sales/r.spend : 0;
+    let flag=null, perf=roas, reason='';
+    if (r.sales===0 && (r.clicks>=t.clicks || r.spend>=t.spend)) {
+      flag='zero_sales'; reason=`0 Sales (${r.clicks} clicks, $${r.spend.toFixed(2)} spend)`;
+    } else if (r.sales>0 && roas>0 && roas<t.perf) {
+      flag='low_perf'; reason=`Low ROAS (${roas.toFixed(2)}x)`;
+    }
+    if (flag) negs.push({account:r.account,adProduct:r.adProduct,campId:r.campId,agId:r.agId,
+      term:r.term,flag,perf,reason,clicks:r.clicks,spend:r.spend,sales:r.sales});
+  });
+  return negs;
+}
+
+function processXLSX() {
+  const { wb } = fileData;
+  const negs = [];
+  const sheetMap = {'SP Search Term Report':'Sponsored Products','SB Search Term Report':'Sponsored Brands'};
+  for (const [sn, adProd] of Object.entries(sheetMap)) {
+    if (!wb.SheetNames.includes(sn)) continue;
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1});
+    const h = rows[0]; const idx={};
+    h.forEach((x,i)=>idx[x]=i);
+    const seen = new Set();
+    for (let i=1;i<rows.length;i++) {
+      const row = rows[i];
+      const campId = String(row[idx['Campaign ID']]||'').trim();
+      const agId   = String(row[idx['Ad Group ID']]||'').trim();
+      const term   = String(row[idx['Customer Search Term']]||'').trim();
+      const clicks = parseFloat(row[idx['Clicks']])||0;
+      const spend  = parseFloat(row[idx['Spend']])||0;
+      const sales  = parseFloat(row[idx['Sales']])||0;
+      const acos   = parseFloat(row[idx['ACOS']])||0;
+      if (!term||!campId) continue;
+      const t = getThreshForAccount('Single Account');
+      let flag=null,perf=acos,reason='';
+      if (sales===0&&(clicks>=t.clicks||spend>=t.spend)) { flag='zero_sales'; reason=`0 Sales (${clicks} clicks, $${spend.toFixed(2)})`; }
+      else if (acos>(t.perf/100)) { flag='low_perf'; reason=`High ACOS (${(acos*100).toFixed(1)}%)`; }
+      if (flag) {
+        const key=`${adProd}||${campId}||${agId}||${term.toLowerCase()}`;
+        if (seen.has(key)) continue; seen.add(key);
+        negs.push({account:'Single Account',adProduct:adProd,campId,agId,term,flag,perf,reason,clicks,spend,sales});
+      }
+    }
+  }
+  return negs;
+}
+
+// ── Render ─────────────────────────────────────────────────────────────────────
+function renderResults() {
+  const zeroCt = allNegs.filter(n=>n.flag==='zero_sales').length;
+  const perfCt = allNegs.filter(n=>n.flag==='low_perf').length;
+  const wasted = allNegs.filter(n=>n.flag==='zero_sales').reduce((s,n)=>s+n.spend,0);
+  const accounts = [...new Set(allNegs.map(n=>n.account))];
+
+  document.getElementById('stat-total').textContent = allNegs.length.toLocaleString();
+  document.getElementById('stat-zero').textContent  = zeroCt.toLocaleString();
+  document.getElementById('stat-perf').textContent  = perfCt.toLocaleString();
+  document.getElementById('stat-spend').textContent = '$'+wasted.toLocaleString('en-US',{maximumFractionDigits:0});
+  document.getElementById('stat-accts').textContent = accounts.length;
+
+  // Account cards
+  const ag = document.getElementById('acct-grid'); ag.innerHTML='';
+  accounts.forEach(a => {
+    const an = allNegs.filter(n=>n.account===a);
+    const az = an.filter(n=>n.flag==='zero_sales').length;
+    const ap = an.filter(n=>n.flag==='low_perf').length;
+    const aw = an.filter(n=>n.flag==='zero_sales').reduce((s,n)=>s+n.spend,0);
+    const types = [...new Set(an.map(n=>n.adProduct))];
+    const pills = types.map(t=>{const c=t==='Sponsored Products'?'sp':t==='Sponsored Brands'?'sb':'sd';return`<span class="tpill ${c}">${t}</span>`;}).join('');
+    const perfLbl = mode==='csv'?'Low ROAS':'High ACOS';
+    const t = getThreshForAccount(a);
+    const isCsv = mode==='csv';
+    const threshInfo = threshMode==='peracct'
+      ? `<div style="padding:8px 14px;border-top:1px solid var(--border);font-family:'DM Mono',monospace;font-size:10px;color:var(--text-muted);">thresholds: ${t.clicks} clicks · $${t.spend} spend · ${isCsv?t.perf+'x ROAS':t.perf+'% ACOS'}</div>`
+      : '';
+    const card=document.createElement('div'); card.className='acard';
+    card.innerHTML=`<div class="ahead"><div class="aname">${a}</div><span class="atot">${an.length} negatives</span></div>
+      <div class="abreak">
+        <div class="abi z"><div class="av">${az}</div><div class="al">0 Sales</div></div>
+        <div class="abi p"><div class="av">${ap}</div><div class="al">${perfLbl}</div></div>
+        <div class="abi s"><div class="av">$${aw.toLocaleString('en-US',{maximumFractionDigits:0})}</div><div class="al">Wasted</div></div>
+      </div>
+      <div class="atypes">${pills}</div>${threshInfo}`;
+    ag.appendChild(card);
+  });
+
+  // Populate filter dropdown
+  const sel=document.getElementById('filt-acct');
+  sel.innerHTML='<option value="all">All Accounts</option>';
+  accounts.forEach(a=>{const o=document.createElement('option');o.value=a;o.textContent=a;sel.appendChild(o);});
+
+  // Per-account download buttons
+  const dg=document.getElementById('dl-acct-grid'); dg.innerHTML='';
+  accounts.forEach(a=>{
+    const an=allNegs.filter(n=>n.account===a);
+    const types=[...new Set(an.map(n=>n.adProduct))];
+    const pills=types.map(t=>{const c=t==='Sponsored Products'?'sp':t==='Sponsored Brands'?'sb':'sd';return`<span class="tpill ${c}" style="font-size:9px;">${t}</span>`;}).join('');
+    const btn=document.createElement('button'); btn.className='btn-dla';
+    btn.innerHTML=`<div class="dan">⬇ ${a}</div><div class="dat">${pills}</div><div class="das">${an.length} terms · Amazon upload-ready</div>`;
+    btn.onclick=()=>dlAccount(a);
+    dg.appendChild(btn);
+  });
+
+  document.getElementById('btn-dl-all').onclick = dlAll;
+  document.getElementById('btn-dl-sum').onclick = dlSummary;
+  renderPreview();
+}
+
+function renderPreview() {
+  const fa=document.getElementById('filt-acct').value;
+  const ft=document.getElementById('filt-type').value;
+  const ff=document.getElementById('filt-flag').value;
+  let rows=allNegs;
+  if (fa!=='all') rows=rows.filter(n=>n.account===fa);
+  if (ft!=='all') rows=rows.filter(n=>n.adProduct===ft);
+  if (ff!=='all') rows=rows.filter(n=>n.flag===ff);
+
+  const tb=document.getElementById('prev-body'); tb.innerHTML='';
+  if (!rows.length) { const tr=document.createElement('tr');tr.className='erow';tr.innerHTML='<td colspan="10">No terms match filters</td>';tb.appendChild(tr);return; }
+
+  rows.slice(0,500).forEach(n=>{
+    const tr=document.createElement('tr');
+    const fh=n.flag==='zero_sales'?'<span class="fz">0 Sales</span>':'<span class="fp">'+(mode==='csv'?'Low ROAS':'High ACOS')+'</span>';
+    const th=n.adProduct==='Sponsored Products'?'<span class="bsp">SP</span>':n.adProduct==='Sponsored Brands'?'<span class="bsb">SB</span>':'<span class="bsd">SD</span>';
+    const ph=mode==='csv'?(n.perf?n.perf.toFixed(2)+'x':'—'):(n.perf?(n.perf*100).toFixed(1)+'%':'—');
+    tr.innerHTML=`<td title="${n.term}">${n.term}</td><td title="${n.account}">${n.account}</td><td>${th}</td><td>${n.campId}</td><td>${n.agId}</td><td>${fh}</td><td>${n.clicks}</td><td>$${n.spend.toFixed(2)}</td><td>$${n.sales.toFixed(2)}</td><td>${ph}</td>`;
+    tb.appendChild(tr);
+  });
+  if (rows.length>500) {
+    const tr=document.createElement('tr');tr.className='erow';
+    tr.innerHTML=`<td colspan="10">Showing 500 of ${rows.length} rows — download for full list</td>`;tb.appendChild(tr);
+  }
+}
+
+// ── Build upload workbook for one account ─────────────────────────────────────
+function buildUploadWB(negs) {
+  const wb = XLSX.utils.book_new();
+  const sp = negs.filter(n=>n.adProduct==='Sponsored Products');
+  const sb = negs.filter(n=>n.adProduct==='Sponsored Brands');
+
+  if (sp.length) {
+    const H=['Product','Entity','Operation','Campaign ID','Ad Group ID','Portfolio ID','Ad ID','Keyword ID','Product Targeting ID','Campaign Name','Ad Group Name','Start Date','End Date','Targeting Type','State','Daily Budget','SKU','Ad Group Default Bid','Bid','Keyword Text','Native Language Keyword','Native Language Locale','Match Type','Bidding Strategy','Placement','Percentage','Product Targeting Expression','Audience ID','Shopper Cohort Percentage','Shopper Cohort Type','Segment Name'];
+    const rows=[H];
+    sp.forEach(n=>{const r=new Array(31).fill('');r[0]='Sponsored Products';r[1]='Negative Keyword';r[2]='Create';r[3]=n.campId;r[4]=n.agId;r[14]='enabled';r[19]=n.term;r[22]='negativeExact';rows.push(r);});
+    const ws=XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols']=[{wch:18},{wch:18},{wch:10},{wch:20},{wch:20},{wch:12},{wch:10},{wch:12},{wch:22},{wch:35},{wch:30},{wch:12},{wch:12},{wch:15},{wch:10},{wch:14},{wch:8},{wch:18},{wch:8},{wch:38},{wch:22},{wch:22},{wch:15},{wch:18},{wch:14},{wch:12},{wch:28},{wch:14},{wch:22},{wch:20},{wch:16}];
+    XLSX.utils.book_append_sheet(wb,ws,'Sponsored Products Campaigns');
+  }
+  if (sb.length) {
+    const H=['Product','Entity','Operation','Campaign ID','Draft Campaign ID','Portfolio ID','Ad Group ID','Keyword ID','Product Targeting ID','Campaign Name','Start Date','End Date','State','Budget Type','Budget','Bid Optimization','Bid Multiplier','Bid','Keyword Text','Match Type','Product Targeting Expression','Ad Format','Landing Page URL','Landing Page ASINs','Brand Entity ID','Brand Name','Brand Logo Asset ID','Custom Image Asset ID','Creative Headline','Creative ASINs','Video Media IDs','Creative Type'];
+    const rows=[H];
+    sb.forEach(n=>{const r=new Array(32).fill('');r[0]='Sponsored Brands';r[1]='Negative Keyword';r[2]='Create';r[3]=n.campId;r[6]=n.agId;r[12]='enabled';r[18]=n.term;r[19]='negativeExact';rows.push(r);});
+    const ws=XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols']=[{wch:18},{wch:18},{wch:10},{wch:20},{wch:16},{wch:12},{wch:16},{wch:12},{wch:22},{wch:40},{wch:12},{wch:12},{wch:10},{wch:14},{wch:14},{wch:16},{wch:14},{wch:8},{wch:38},{wch:15},{wch:28},{wch:14},{wch:30},{wch:22},{wch:18},{wch:22},{wch:20},{wch:22},{wch:22},{wch:20},{wch:18},{wch:16}];
+    XLSX.utils.book_append_sheet(wb,ws,'Sponsored Brands Campaigns');
+  }
+  return wb;
+}
+
+function dlAccount(acct) {
+  const negs=allNegs.filter(n=>n.account===acct);
+  const wb=buildUploadWB(negs);
+  const safe=acct.replace(/[^a-zA-Z0-9_\-]/g,'_');
+  XLSX.writeFile(wb,`${safe}_NegativeKeywords_Upload_${today()}.xlsx`);
+}
+
+function dlAll() {
+  const accounts=[...new Set(allNegs.map(n=>n.account))];
+  accounts.forEach((a,i)=>setTimeout(()=>dlAccount(a), i*700));
+}
+
+function dlSummary() {
+  const wb=XLSX.utils.book_new();
+  const t=getT(); const isCsv=mode==='csv';
+  const accounts=[...new Set(allNegs.map(n=>n.account))];
+  const zeroCt=allNegs.filter(n=>n.flag==='zero_sales').length;
+  const perfCt=allNegs.filter(n=>n.flag==='low_perf').length;
+  const wasted=allNegs.filter(n=>n.flag==='zero_sales').reduce((s,n)=>s+n.spend,0);
+  const perfLbl=isCsv?'Low ROAS':'High ACOS';
+
+  const rows=[
+    ['FILTERING SUMMARY — ALL ACCOUNTS'],[''],
+    ['TOTALS','','THRESHOLDS USED'],
+    ['Total Terms Negated',allNegs.length,'0 Sales Min Clicks ≥',t.clicks],
+    ['Zero Sales Terms',zeroCt,'0 Sales Min Spend ≥ $',t.spend],
+    [perfLbl+' Terms',perfCt,isCsv?'Min ROAS':'Max ACOS',t.perf+(isCsv?'x':'%')],
+    ['Wasted Spend (0-Sales)','$'+wasted.toFixed(2)],
+    [''],['BY ACCOUNT'],
+  ];
+  accounts.forEach(a=>{
+    const an=allNegs.filter(n=>n.account===a);
+    const aw=an.filter(n=>n.flag==='zero_sales').reduce((s,n)=>s+n.spend,0);
+    rows.push([a,an.length,'terms','$'+aw.toFixed(2)+' wasted']);
+  });
+  rows.push(['']);
+  rows.push(['#','Account','Ad Type','Campaign ID','Ad Group ID','Search Term','Flag Reason','Clicks','Spend','Sales',isCsv?'ROAS':'ACOS','Match Type']);
+  allNegs.forEach((n,i)=>{
+    const ph=isCsv?(n.perf?n.perf.toFixed(2)+'x':'—'):(n.perf?(n.perf*100).toFixed(1)+'%':'—');
+    rows.push([i+1,n.account,n.adProduct,n.campId,n.agId,n.term,n.reason,n.clicks,n.spend,n.sales,ph,'negativeExact']);
+  });
+  const ws=XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols']=[{wch:5},{wch:22},{wch:20},{wch:20},{wch:20},{wch:42},{wch:38},{wch:8},{wch:12},{wch:10},{wch:10},{wch:14}];
+  XLSX.utils.book_append_sheet(wb,ws,'Filtering Summary');
+  XLSX.writeFile(wb,`NegativeKeywords_FilteringSummary_${today()}.xlsx`);
+}
+
+function today() { return new Date().toISOString().split('T')[0]; }
+
+function resetFile() {
+  fileData=null; allNegs=[];
+  detectedAccounts=[]; acctThresholds={};
+  fi.value='';
+  dz.classList.remove('loaded');
+  document.getElementById('drop-icon').textContent='📂';
+  document.getElementById('drop-title').textContent='Drop your report file here';
+  document.getElementById('det-info').classList.remove('v');
+  document.getElementById('det-info').innerHTML='';
+  document.getElementById('btn-process').disabled=true;
+  document.getElementById('results').classList.remove('v');
+  document.getElementById('clear-file-row').style.display='none';
+  // Reset per-account panel to waiting state
+  document.getElementById('peracct-waiting').style.display='';
+  document.getElementById('peracct-cards-wrap').style.display='none';
+  clearErr();
+}
+
+document.getElementById('btn-reset').addEventListener('click', resetFile);
+
+// Init
+setMode('csv');
+</script>
+</body>
+</html>
